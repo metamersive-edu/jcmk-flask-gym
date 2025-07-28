@@ -17,44 +17,40 @@ app.register_blueprint(leaderboard_json)
 app.register_blueprint(energy_api)
 app.register_blueprint(competition_api)
 # Define the function that WifiPoller will call on receiving data
-def handle_data(data):
+@app.route("/api/receive_data", methods=["POST"])
+def receive_data():
     try:
-        if not isinstance(data, dict) or "channels" not in data:
-            print("[WifiPoller] Invalid data format: Expected dict with 'channels' key.")
-            return
+        data = request.get_json(force=True)
+        if not data:
+            return jsonify({"error": "Empty payload"}), 400
 
-        entries = data["channels"]
+        # Normalize to list
+        entries = [data] if isinstance(data, dict) else data if isinstance(data, list) else None
+        if entries is None:
+            return jsonify({"error": "Invalid JSON format"}), 400
+
         valid_entries = []
-
         for entry in entries:
-            if entry.get("connected") != 1:
-                continue
-
             try:
-                cleaned = {
-                    "cycle": entry["channel"] + 1,
-                    "voltage": entry["voltage_mV"] / 1000,
-                    "current": abs(entry["current_mA"] / 1000),
-                    "power": entry["power_mW"] / 1000,
-                }
-                valid_entries.append(cleaned)
+                valid_entries.append({
+                    "cycle": int(entry["cycle"]),
+                    "voltage": float(entry["voltage"]),
+                    "current": abs(float(entry["current"])),
+                    "power": float(entry["power"])
+                })
             except Exception as e:
-                print(f"[WifiPoller] Data conversion failed: {entry} => {e}")
+                print(f"[ESP] Skipped invalid entry: {entry} — {e}")
 
         if valid_entries:
             log_data(valid_entries)
-            print(f"[WifiPoller] Logged {len(valid_entries)} entries.")
+            print(f"[ESP] Logged {len(valid_entries)} entries")
+            return jsonify({"status": "ok", "count": len(valid_entries)}), 200
         else:
-            print("[WifiPoller] No valid entries found.")
+            return jsonify({"error": "No valid entries"}), 400
+
     except Exception as e:
-        print(f"[WifiPoller] Exception in handle_data: {e}")
-
-# Start WifiPoller in a background thread
-poller = WifiPoller()
-poller.set_callback(handle_data)
-poller_thread = threading.Thread(target=poller.run, daemon=True)
-poller_thread.start()
-
+        print(f"[ESP] Error: {e}")
+        return jsonify({"error": str(e)}), 500
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port, debug=True)
