@@ -19,39 +19,38 @@ app.register_blueprint(energy_api)
 app.register_blueprint(competition_api)
 # Define the function that WifiPoller will call on receiving data
 @app.route("/api/receive_data", methods=["POST"])
-def receive_data():
-    try:
-        data = request.get_json(force=True)
-        if not data:
-            return jsonify({"error": "Empty payload"}), 400
+def handle_data(data):
+    print("[DEBUG] Raw incoming data:", data)
 
-        # Normalize to list
-        entries = [data] if isinstance(data, dict) else data if isinstance(data, list) else None
-        if entries is None:
-            return jsonify({"error": "Invalid JSON format"}), 400
+    if not isinstance(data, dict) or "channels" not in data:
+        print("[ERROR] Invalid format: no 'channels' key")
+        return
 
-        valid_entries = []
-        for entry in entries:
-            try:
-                valid_entries.append({
-                    "cycle": int(entry["cycle"]),
-                    "voltage": float(entry["voltage"]),
-                    "current": abs(float(entry["current"])),
-                    "power": float(entry["power"])
-                })
-            except Exception as e:
-                print(f"[ESP] Skipped invalid entry: {entry} — {e}")
+    entries = data["channels"]
+    valid_entries = []
 
-        if valid_entries:
-            log_data(valid_entries)
-            print(f"[ESP] Logged {len(valid_entries)} entries")
-            return jsonify({"status": "ok", "count": len(valid_entries)}), 200
-        else:
-            return jsonify({"error": "No valid entries"}), 400
+    for entry in entries:
+        print(f"[DEBUG] Entry: {entry}")
+        if entry.get("connected") != 1:
+            print("[DEBUG] Skipping entry: not connected")
+            continue
 
-    except Exception as e:
-        print(f"[ESP] Error: {e}")
-        return jsonify({"error": str(e)}), 500
+        try:
+            cleaned = {
+                "cycle": entry["channel"] + 1,
+                "voltage": entry["voltage_mV"] / 1000,
+                "current": abs(entry["current_mA"] / 1000),
+                "power": entry["power_mW"] / 1000,
+            }
+            valid_entries.append(cleaned)
+        except Exception as e:
+            print(f"[ERROR] Conversion failed: {e}")
+
+    if valid_entries:
+        log_data(valid_entries)
+        print(f"[SUCCESS] Logged {len(valid_entries)} entries.")
+    else:
+        print("[WARN] No valid entries found.")
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port, debug=True)
