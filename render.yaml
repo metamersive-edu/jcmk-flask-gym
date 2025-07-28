@@ -1,0 +1,7 @@
+# render.yaml
+services:
+  - type: web
+    name: jcmk-flask-gym
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
