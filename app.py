@@ -1,4 +1,5 @@
 from flask import Flask
+from flask import request, jsonify
 from ui import ui_blueprint
 from register_api import register_api
 from leaderboard_api import leaderboard_json
