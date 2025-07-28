@@ -19,12 +19,13 @@ app.register_blueprint(energy_api)
 app.register_blueprint(competition_api)
 # Define the function that WifiPoller will call on receiving data
 @app.route("/api/receive_data", methods=["POST"])
-def handle_data(data):
+def handle_data():
+    data = request.get_json(force=True)
     print("[DEBUG] Raw incoming data:", data)
 
     if not isinstance(data, dict) or "channels" not in data:
         print("[ERROR] Invalid format: no 'channels' key")
-        return
+        return jsonify({"error": "No valid entries"}), 400
 
     entries = data["channels"]
     valid_entries = []
@@ -49,8 +50,11 @@ def handle_data(data):
     if valid_entries:
         log_data(valid_entries)
         print(f"[SUCCESS] Logged {len(valid_entries)} entries.")
+        return jsonify({"status": "success", "count": len(valid_entries)}), 200
     else:
         print("[WARN] No valid entries found.")
+        return jsonify({"error": "No valid entries"}), 400
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port, debug=True)
