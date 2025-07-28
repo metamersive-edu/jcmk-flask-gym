@@ -7,7 +7,7 @@ from tracker import log_data
 from wifi_listener import WifiPoller
 import threading
 from competition_api import competition_api
-
+import os
 app = Flask(__name__)
 
 # Register all blueprints
