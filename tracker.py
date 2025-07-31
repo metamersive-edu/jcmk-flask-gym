@@ -72,21 +72,21 @@ class FlaskSessionTracker:
         self.total_voltage = 0
         self.voltage_samples = 0
     
-def get_live_energy(self):
-    print(f"[DEBUG] Getting live energy for cycle {self.cycle_id} - Running: {self.running}")
-    if not self.running:
-        return 0.0
-
-    # If no update from ESP in 2 seconds, freeze energy
-    if self.last_update_time and (time.time() - self.last_update_time > 2):
-        print(f"[INFO] No new data for cycle {self.cycle_id}, holding energy.")
-        elapsed = self.last_update_time - self.start_time
-    else:
-        elapsed = time.time() - self.start_time
-
-    avg_voltage = self.total_voltage / self.voltage_samples if self.voltage_samples else 0
-    avg_current = 1.0
-    return (avg_voltage * avg_current * elapsed) / 3600
+    def get_live_energy(self):
+        print(f"[DEBUG] Getting live energy for cycle {self.cycle_id} - Running: {self.running}")
+        if not self.running:
+            return 0.0
+    
+        # If no update from ESP in 2 seconds, freeze energy
+        if self.last_update_time and (time.time() - self.last_update_time > 2):
+            print(f"[INFO] No new data for cycle {self.cycle_id}, holding energy.")
+            elapsed = self.last_update_time - self.start_time
+        else:
+            elapsed = time.time() - self.start_time
+    
+        avg_voltage = self.total_voltage / self.voltage_samples if self.voltage_samples else 0
+        avg_current = 1.0
+        return (avg_voltage * avg_current * elapsed) / 3600
 
 
 def register_session(mode, name, cycle):
