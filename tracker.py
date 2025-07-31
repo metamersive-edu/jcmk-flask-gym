@@ -30,18 +30,19 @@ class FlaskSessionTracker:
         self.voltage_samples = 0
 
     def update_voltage(self, voltage):
-    if self.running:
-        # If voltage is invalid (too low), do NOT add new samples
-        if voltage < 2:
-            print(f"[INFO] Voltage too low on cycle {self.cycle_id}. Holding previous energy value.")
-            return  # Freeze energy calculation until new valid reading
+        if self.running:
+            # If voltage is invalid (too low), do NOT add new samples
+            if voltage < 2:
+                print(f"[INFO] Voltage too low on cycle {self.cycle_id}. Holding previous energy value.")
+                return  # Freeze energy calculation until new valid reading
+    
+            # Reset low-voltage counter if valid reading arrives
+            self.low_voltage_count = 0
+    
+            # Add new valid voltage sample
+            self.total_voltage += voltage
+            self.voltage_samples += 1
 
-        # Reset low-voltage counter if valid reading arrives
-        self.low_voltage_count = 0
-
-        # Add new valid voltage sample
-        self.total_voltage += voltage
-        self.voltage_samples += 1
 
 
     def stop(self):
