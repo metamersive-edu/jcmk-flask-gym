@@ -42,13 +42,19 @@ def handle_data():
                 print(f"[WARN] Discarding entry for channel {entry['channel']} - Voltage too high ({entry['voltage_mV']} mV)")
                 continue
 
+            # Treat low voltage < 2V as 0
+            if entry["voltage_mV"] < 2000:
+                print(f"[INFO] Low voltage detected for channel {entry['channel']} ({entry['voltage_mV']} mV) → treating as 0V")
+                entry["voltage_mV"] = 0
+
             cleaned = {
                 "cycle": entry["channel"] + 1,
-                "voltage": entry["voltage_mV"] / 1000,
-                "current": abs(entry["current_mA"] / 1000),
-                "power": entry["power_mW"] / 1000,
+                "voltage": entry["voltage_mV"] / 1000,      # Convert mV → V
+                "current": abs(entry["current_mA"] / 1000), # Convert mA → A
+                "power": entry["power_mW"] / 1000,         # Convert mW → W
             }
             valid_entries.append(cleaned)
+
         except Exception as e:
             print(f"[ERROR] Conversion failed: {e}")
 
@@ -59,6 +65,7 @@ def handle_data():
     else:
         print("[WARN] No valid entries found.")
         return jsonify({"error": "No valid entries"}), 400
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
