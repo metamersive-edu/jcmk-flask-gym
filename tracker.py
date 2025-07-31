@@ -16,6 +16,7 @@ class FlaskSessionTracker:
         self.start_time = None
         self.total_voltage = 0.0
         self.voltage_samples = 0
+        self.last_update_time = None
         self.filename = f"data/{mode}_sessions.csv"
 
         if not os.path.exists(self.filename):
