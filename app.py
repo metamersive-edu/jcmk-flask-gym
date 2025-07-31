@@ -37,6 +37,11 @@ def handle_data():
             continue
 
         try:
+            # Discard if voltage > 14V (14,000 mV)
+            if entry["voltage_mV"] > 14000:
+                print(f"[WARN] Discarding entry for channel {entry['channel']} - Voltage too high ({entry['voltage_mV']} mV)")
+                continue
+
             cleaned = {
                 "cycle": entry["channel"] + 1,
                 "voltage": entry["voltage_mV"] / 1000,
