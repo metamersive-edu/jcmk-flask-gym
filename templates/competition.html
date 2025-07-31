@@ -39,7 +39,7 @@
               </div>
               <div>
                         <a href="/competition-log" class="log-button">
-                  <i class="fas fa-clipboard-list"></i> View Logs
+                  <i class="fas fa-clipboard-list"></i> Leaderboard
                 </a>  
 
           </div>
@@ -53,9 +53,22 @@
 
 
          
-                <button class="start-race-btn" id="startRaceTop">
-                  <i class="fas fa-flag-checkered"></i> Start Race
-                </button>
+<button
+  class="start-race-btn"
+  id="startRaceTop"
+  data-state="start"
+  onclick="
+    if (this.dataset.state === 'start') {
+      this.innerHTML = '<i class=\'fas fa-flag-checkered\'></i> Stop Race';
+      this.dataset.state = 'stop';
+    } else {
+      this.innerHTML = '<i class=\'fas fa-flag-checkered\'></i> Start Race';
+      this.dataset.state = 'start';
+    }
+  ">
+  <i class="fas fa-flag-checkered"></i> Start Race
+</button>
+
 
           </div>
     </header>
