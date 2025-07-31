@@ -251,20 +251,31 @@
             <div></div> <!-- Empty div for flex spacing -->
         </div>
 
-        <div class="record-actions">
-            <div class="record-selector">
-                <div class="select-wrapper">
-                    <select id="recordType" class="record-dropdown" disabled>
-                    <option value="all" selected>Competition Leaderboard</option>
-                    </select>
-                    <i class="fas fa-chevron-down"></i>
-                </div>
-            </div>
-            <button id="exportCsv" class="export-button" disabled>
-                <i class="fas fa-file-export"></i>
-                Export to CSV
-            </button>
-        </div>
+<div class="record-actions">
+  <button id="prevRace" class="back-button" disabled>
+    <i class="fas fa-arrow-left"></i>
+    Previous Race
+  </button>
+
+  <div class="record-selector">
+    <div class="select-wrapper">
+      <select id="recordType" class="record-dropdown" disabled>
+        <!-- options will be injected dynamically -->
+      </select>
+      <i class="fas fa-chevron-down"></i>
+    </div>
+  </div>
+
+  <button id="nextRace" class="back-button" disabled>
+    Next Race
+    <i class="fas fa-arrow-right"></i>
+  </button>
+
+  <button id="exportCsv" class="export-button" disabled>
+    <i class="fas fa-file-export"></i>
+    Export to CSV
+  </button>
+</div>
 
         <div class="leaderboard-container">
             <div class="leaderboard">
@@ -287,50 +298,38 @@
                 </table>
             </div>
 
-
-    <script>
-        
-  let recordsData = [];
-  let currentColumns = [
-    { key: 'name', header: 'Name' },
-    { key: 'duration', header: 'Duration' },
-    { key: 'timestamp', header: 'Date' },
-    { key: 'energy', header: 'Energy (Wh)' }
-  ];
+<script>
+  // ─── Helpers ────────────────────────────────────────────────────────────────
 
   function populateTable(containerId, data, columns) {
     const tbody = document.getElementById(containerId);
     if (!tbody) return;
-
     if (!data || data.length === 0) {
       tbody.innerHTML = `<tr><td colspan="${columns.length + 1}" class="no-data">No records available</td></tr>`;
       return;
     }
-
-    tbody.innerHTML = data.map((item, index) => {
-      let row = `<tr><td>${index + 1}</td>`;
+    tbody.innerHTML = data.map((item, idx) => {
+      let row = `<tr><td>${idx + 1}</td>`;
       columns.forEach(col => {
-        const value = item[col.key] || '';
-        const cellClass = col.class || '';
-        row += `<td class="${cellClass}">${value}</td>`;
+        const v = item[col.key] || '';
+        row += `<td class="${col.class || ''}">${v}</td>`;
       });
-      row += '</tr>';
-      return row;
+      return row + '</tr>';
     }).join('');
   }
 
   function convertToCSV(data, columns) {
-    const headers = ['Rank', ...columns.map(col => col.header || col.key)];
+    const headers = ['Rank', ...columns.map(c => c.header)];
     const rows = data.map((item, i) => {
-      const row = [i + 1];
+      const cells = [i + 1];
       columns.forEach(col => {
         let v = item[col.key] || '';
-        if (typeof v === 'string' && (v.includes(',') || v.includes('"') || v.includes('\n'))) {
+        if (typeof v === 'string' && (v.includes(',') || v.includes('"'))) {
           v = `"${v.replace(/"/g, '""')}"`;
         }
-        row.push(v);
+        cells.push(v);
       });
-      return row.join(',');
+      return cells.join(',');
     });
     return [headers.join(','), ...rows].join('\n');
   }
@@ -339,117 +338,121 @@
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', filename);
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
   }
 
-  // Format duration for sorting (converts MM:SS to seconds)
-  function durationToSeconds(duration) {
-    if (!duration) return 0;
-    const [minutes, seconds] = String(duration).split(':').map(Number);
-    return (minutes * 60) + (seconds || 0);
+  function durationToSeconds(dur) {
+    if (!dur) return 0;
+    const [m, s] = String(dur).split(':').map(Number);
+    return (m * 60) + (s || 0);
   }
 
-  // Format energy value (remove ' Wh' and convert to number)
-  function parseEnergy(energy) {
-    if (!energy) return 0;
-    return parseFloat(String(energy).replace(' Wh', '')) || 0;
+  function parseEnergy(e) {
+    if (!e) return 0;
+    return parseFloat(String(e).replace(' Wh','')) || 0;
   }
+
+  // ─── State & Navigation ───────────────────────────────────────────────────
+
+  let raceTimestamps   = [];
+  let recordsByRace    = {};
+  let currentRaceIndex = 0;
+
+  function updateNavigationButtons() {
+    document.getElementById('prevRace').disabled = currentRaceIndex >= raceTimestamps.length - 1;
+    document.getElementById('nextRace').disabled = currentRaceIndex <= 0;
+  }
+
+  function updateTableForRace(idx) {
+    const ts = raceTimestamps[idx];
+    populateTable('allCompetitionsBody', recordsByRace[ts], currentColumns);
+    document.getElementById('recordType').value = ts;
+    updateNavigationButtons();
+  }
+
+  // ─── Main ───────────────────────────────────────────────────────────────────
+
+  // must match your column‐defs
+  const currentColumns = [
+    { key: 'name',      header: 'Name'     },
+    { key: 'duration',  header: 'Duration' },
+    { key: 'timestamp', header: 'Date'     },
+    { key: 'energy',    header: 'Energy (Wh)' }
+  ];
 
   document.addEventListener('DOMContentLoaded', () => {
     const exportBtn = document.getElementById('exportCsv');
-    const tableBody = document.getElementById('allCompetitionsBody');
+    const prevBtn   = document.getElementById('prevRace');
+    const nextBtn   = document.getElementById('nextRace');
+    const recordSel = document.getElementById('recordType');
+    const tbody      = document.getElementById('allCompetitionsBody');
 
     fetch('/api/competition_leaderboard')
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        return res.json();
-      })
+      .then(res => res.ok ? res.json() : Promise.reject(res.status))
       .then(data => {
-        // Sort by energy (descending) and then by duration (ascending)
-        recordsData = data.sort((a, b) => {
-          const energyA = parseEnergy(a.energy);
-          const energyB = parseEnergy(b.energy);
-          if (energyB !== energyA) return energyB - energyA;
-          
-          const durationA = durationToSeconds(a.duration);
-          const durationB = durationToSeconds(b.duration);
-          return durationA - durationB;
+        // 1) collect & sort timestamps (newest first)
+        raceTimestamps = Array.from(
+          new Set(data.map(r => r.timestamp))
+        ).sort((a, b) => new Date(b) - new Date(a));
+
+        // 2) group rows
+        raceTimestamps.forEach(ts => {
+          recordsByRace[ts] = data.filter(r => r.timestamp === ts);
         });
 
-        populateTable('allCompetitionsBody', recordsData, currentColumns);
+        // 3) build dropdown
+        recordSel.innerHTML = '';
+        raceTimestamps.forEach(ts => {
+          const label = new Date(ts).toLocaleString();
+          recordSel.add(new Option(label, ts));
+        });
+        recordSel.disabled = false;
         exportBtn.disabled = false;
-        
-        // Add event listeners for sorting
-        document.querySelectorAll('th').forEach(header => {
-          header.style.cursor = 'pointer';
-          header.addEventListener('click', () => {
-            const key = header.textContent.trim().toLowerCase();
-            const column = currentColumns.find(col => 
-              col.header.toLowerCase() === key || col.key.toLowerCase() === key
-            );
-            
-            if (column) {
-              const sortKey = column.key;
-              const isAsc = header.getAttribute('data-sort') === 'asc';
-              
-              recordsData.sort((a, b) => {
-                let valA, valB;
-                
-                if (sortKey === 'energy') {
-                  valA = parseEnergy(a[sortKey]);
-                  valB = parseEnergy(b[sortKey]);
-                } else if (sortKey === 'duration') {
-                  valA = durationToSeconds(a[sortKey]);
-                  valB = durationToSeconds(b[sortKey]);
-                } else {
-                  valA = String(a[sortKey] || '').toLowerCase();
-                  valB = String(b[sortKey] || '').toLowerCase();
-                }
-                
-                if (valA < valB) return isAsc ? -1 : 1;
-                if (valA > valB) return isAsc ? 1 : -1;
-                return 0;
-              });
-              
-              // Toggle sort direction
-              header.setAttribute('data-sort', isAsc ? 'desc' : 'asc');
-              header.innerHTML = `${column.header} ${isAsc ? '↓' : '↑'}`;
-              
-              // Reset other headers
-              document.querySelectorAll('th').forEach(h => {
-                if (h !== header) {
-                  h.removeAttribute('data-sort');
-                  h.innerHTML = h.textContent.replace(/[↑↓]\s*$/, '');
-                }
-              });
-              
-              populateTable('allCompetitionsBody', recordsData, currentColumns);
-            }
-          });
+        prevBtn.disabled   = false;
+        nextBtn.disabled   = false;
+
+        // 4) show the latest race
+        currentRaceIndex = 0;
+        updateTableForRace(0);
+
+        // 5) wire controls
+        recordSel.addEventListener('change', () => {
+          currentRaceIndex = raceTimestamps.indexOf(recordSel.value);
+          updateTableForRace(currentRaceIndex);
+        });
+        prevBtn.addEventListener('click', () => {
+          if (currentRaceIndex < raceTimestamps.length - 1) {
+            currentRaceIndex++;
+            updateTableForRace(currentRaceIndex);
+          }
+        });
+        nextBtn.addEventListener('click', () => {
+          if (currentRaceIndex > 0) {
+            currentRaceIndex--;
+            updateTableForRace(currentRaceIndex);
+          }
+        });
+        exportBtn.addEventListener('click', () => {
+          const rows = recordsByRace[raceTimestamps[currentRaceIndex]];
+          const csv  = convertToCSV(rows, currentColumns);
+          const date = raceTimestamps[currentRaceIndex].slice(0,10);
+          downloadCSV(csv, `competition_${date}.csv`);
         });
       })
       .catch(err => {
-        console.error("❌ Failed to load leaderboard:", err);
-        tableBody.innerHTML = `
-          <tr>
-            <td colspan="5" class="no-data">
-              Error loading leaderboard: ${err.message}
-            </td>
-          </tr>`;
+        console.error('Error loading data:', err);
+        tbody.innerHTML = `
+          <tr><td colspan="${currentColumns.length+1}" class="no-data">
+            Error loading data: ${err.message || err}
+          </td></tr>`;
       });
-
-    exportBtn.addEventListener('click', () => {
-      if (!recordsData.length) return alert("No data to export.");
-      const csv = convertToCSV(recordsData, currentColumns);
-      const filename = `competition_leaderboard_${new Date().toISOString().slice(0,10)}.csv`;
-      downloadCSV(csv, filename);
-    });
   });
 </script>
+
 
 </body>
 </html>
