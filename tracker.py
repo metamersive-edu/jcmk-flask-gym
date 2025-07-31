@@ -16,6 +16,7 @@ class FlaskSessionTracker:
         self.start_time = None
         self.total_voltage = 0.0
         self.voltage_samples = 0
+        self.last_update_time = None
         self.filename = f"data/{mode}_sessions.csv"
 
         if not os.path.exists(self.filename):
@@ -31,17 +32,15 @@ class FlaskSessionTracker:
 
     def update_voltage(self, voltage):
         if self.running:
-            # If voltage is invalid (too low), do NOT add new samples
-            if voltage < 2:
-                print(f"[INFO] Voltage too low on cycle {self.cycle_id}. Holding previous energy value.")
-                return  # Freeze energy calculation until new valid reading
+            if voltage < 2:  # No pedaling detected
+                print(f"[INFO] No pedaling detected for cycle {self.cycle_id}, freezing energy.")
+                return  # Don't add voltage samples, freeze energy
     
-            # Reset low-voltage counter if valid reading arrives
-            self.low_voltage_count = 0
-    
-            # Add new valid voltage sample
+            # If pedaling, record voltage
             self.total_voltage += voltage
             self.voltage_samples += 1
+            self.last_update_time = time.time()
+
 
 
 
@@ -73,16 +72,23 @@ class FlaskSessionTracker:
         self.running = False
         self.total_voltage = 0
         self.voltage_samples = 0
-
+    
     def get_live_energy(self):
         print(f"[DEBUG] Getting live energy for cycle {self.cycle_id} - Running: {self.running}")
-        print(f"[DEBUG] Total voltage: {self.total_voltage}, Samples: {self.voltage_samples}")
         if not self.running:
             return 0.0
-        elapsed = time.time() - self.start_time
+    
+        # If no update from ESP in 2 seconds, freeze energy
+        if self.last_update_time and (time.time() - self.last_update_time > 2):
+            print(f"[INFO] No new data for cycle {self.cycle_id}, holding energy.")
+            elapsed = self.last_update_time - self.start_time
+        else:
+            elapsed = time.time() - self.start_time
+    
         avg_voltage = self.total_voltage / self.voltage_samples if self.voltage_samples else 0
         avg_current = 1.0
         return (avg_voltage * avg_current * elapsed) / 3600
+
 
 def register_session(mode, name, cycle):
     tracker = FlaskSessionTracker(student=name, cycle_id=cycle, mode=mode)
