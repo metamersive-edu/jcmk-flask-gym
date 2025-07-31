@@ -17,6 +17,8 @@ class FlaskSessionTracker:
         self.total_voltage = 0.0
         self.voltage_samples = 0
         self.last_update_time = None
+        self.paused_time = 0       # NEW: track total paused time
+        self.pause_start = None    # NEW: track when pause starts
         self.filename = f"data/{mode}_sessions.csv"
 
         if not os.path.exists(self.filename):
@@ -33,15 +35,19 @@ class FlaskSessionTracker:
     def update_voltage(self, voltage):
         if self.running:
             if voltage < 2:  # No pedaling detected
+                if self.pause_start is None:  # Start pause timer if not already paused
+                    self.pause_start = time.time()
                 print(f"[INFO] No pedaling detected for cycle {self.cycle_id}, freezing energy.")
-                return  # Don't add voltage samples, freeze energy
+                return
     
-            # If pedaling, record voltage
+            # If pedaling resumes, add pause duration to paused_time
+            if self.pause_start:
+                self.paused_time += time.time() - self.pause_start
+                self.pause_start = None
+    
             self.total_voltage += voltage
             self.voltage_samples += 1
             self.last_update_time = time.time()
-
-
 
 
     def stop(self):
@@ -78,12 +84,12 @@ class FlaskSessionTracker:
         if not self.running:
             return 0.0
     
-        # If no update from ESP in 2 seconds, freeze energy
+        # If no update from ESP for 2 seconds, freeze energy
         if self.last_update_time and (time.time() - self.last_update_time > 2):
             print(f"[INFO] No new data for cycle {self.cycle_id}, holding energy.")
-            elapsed = self.last_update_time - self.start_time
+            elapsed = self.last_update_time - self.start_time - self.paused_time
         else:
-            elapsed = time.time() - self.start_time
+            elapsed = time.time() - self.start_time - self.paused_time
     
         avg_voltage = self.total_voltage / self.voltage_samples if self.voltage_samples else 0
         avg_current = 1.0
